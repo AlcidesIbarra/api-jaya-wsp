@@ -1,4 +1,4 @@
-const { default: makeWASocket, delay, DisconnectReason, initAuthCreds } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -10,48 +10,17 @@ let sock;
 let codigoVinculacion = "";
 let connectionStatus = "Desconectado";
 
-// Almacenamiento seguro en memoria con credenciales nativas autogeneradas por Baileys
-let memoriaCreds = {
-    creds: initAuthCreds(),
-    keys: {}
-};
-
 async function conectarWhatsApp() {
-    const state = {
-        creds: memoriaCreds.creds,
-        keys: {
-            get: (type, ids) => {
-                const data = {};
-                for (const id of ids) {
-                    if (memoriaCreds.keys[`${type}-${id}`]) {
-                        data[id] = memoriaCreds.keys[`${type}-${id}`];
-                    }
-                }
-                return data;
-            },
-            set: (data) => {
-                for (const type in data) {
-                    for (const id in data[type]) {
-                        if (data[type][id]) {
-                            memoriaCreds.keys[`${type}-${id}`] = data[type][id];
-                        } else {
-                            delete memoriaCreds.keys[`${type}-${id}`];
-                        }
-                    }
-                }
-            }
-        }
-    };
-
+    // Koyeb guardará esta carpeta de forma persistente en su disco gratis
+    const { state, saveCreds } = await useMultiFileAuthState('auth_info_jaya');
+    
     sock = makeWASocket({
         auth: state,
         printQRInTerminal: false,
         qrTimeout: 40000
     });
 
-    sock.ev.on('creds.update', (newCreds) => {
-        Object.assign(memoriaCreds.creds, newCreds);
-    });
+    sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect } = update;
@@ -63,21 +32,17 @@ async function conectarWhatsApp() {
         } else if (connection === 'open') {
             connectionStatus = "Conectado Exitosamente";
             codigoVinculacion = "";
-            console.log("¡WhatsApp conectado exitosamente!");
+            console.log("¡WhatsApp conectado y guardado en el disco de Koyeb!");
         }
     });
 }
 
 app.post('/solicitar-codigo', async (req, res) => {
     const { numero } = req.body;
-    if (!numero) return res.status(400).json({ error: "Falta el número" });
+    if (!numero) return res.status(400).json({ error: "Falta el número de teléfono" });
     if (!sock) return res.status(500).json({ error: "Servidor no inicializado" });
+    
     try {
-        if (sock.authState.creds.registered) {
-            memoriaCreds.creds = initAuthCreds();
-            await conectarWhatsApp();
-            await delay(2000);
-        }
         connectionStatus = "Generando código de 8 dígitos...";
         let code = await sock.requestPairingCode(numero.trim());
         codigoVinculacion = code?.match(/.{1,4}/g)?.join('-') || code;
@@ -85,7 +50,7 @@ app.post('/solicitar-codigo', async (req, res) => {
         res.json({ status: "ok", codigo: codigoVinculacion });
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: "Error al solicitar código" });
+        res.status(500).json({ error: "Error al solicitar código a WhatsApp" });
     }
 });
 
@@ -163,6 +128,20 @@ app.get('/', (req, res) => {
         '</body></html>';
 
     res.send(htmlFinal);
+});
+
+app.post('/enviar-mensaje', async (req, res) => {
+    const { telefono, mensaje } = req.body;
+    if (!sock || connectionStatus !== "Conectado Exitosamente") {
+        return res.status(500).json({ status: "error", mensaje: "El servidor de WhatsApp no está enlazado todavía." });
+    }
+    try {
+        const idFormateado = `${telefono}@s.whatsapp.net`;
+        await sock.sendMessage(idFormateado, { text: mensaje });
+        res.json({ status: "ok" });
+    } catch (error) {
+        res.status(500).json({ status: "error", mensaje: error.message });
+    }
 });
 
 app.listen(PORT, () => {

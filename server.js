@@ -10,7 +10,6 @@ let sock;
 let codigoVinculacion = "";
 let connectionStatus = "Desconectado";
 
-// Almacenamiento líquido en memoria RAM para hosting gratuito
 let memoriaCreds = {
     creds: {
         registered: false,
@@ -21,14 +20,13 @@ let memoriaCreds = {
         registrationId: Math.floor(Math.random() * 10000),
         advSecretKey: "AAAA",
         nextPreKeyId: 1,
-        firstUn wickednessPreKeyId: 1,
+        firstUnuploadedPreKeyId: 1,
         accountSettings: { unarchiveChats: false }
     },
     keys: {}
 };
 
 async function conectarWhatsApp() {
-    // Inicializar estado limpio en memoria
     const state = {
         creds: memoriaCreds.creds,
         keys: {
@@ -75,7 +73,7 @@ async function conectarWhatsApp() {
         } else if (connection === 'open') {
             connectionStatus = "Conectado Exitosamente";
             codigoVinculacion = "";
-            console.log("¡WhatsApp conectado de forma real!");
+            console.log("¡WhatsApp enlazado correctamente!");
         }
     });
 }
@@ -84,15 +82,12 @@ app.post('/solicitar-codigo', async (req, res) => {
     const { numero } = req.body;
     if (!numero) return res.status(400).json({ error: "Falta el número" });
     if (!sock) return res.status(500).json({ error: "Servidor no inicializado" });
-    
     try {
-        // Forzar un reinicio limpio del socket para el nuevo número
         if (sock.authState.creds.registered) {
             memoriaCreds.creds.registered = false;
             await conectarWhatsApp();
             await delay(2000);
         }
-        
         connectionStatus = "Generando código de 8 dígitos...";
         let code = await sock.requestPairingCode(numero.trim());
         codigoVinculacion = code?.match(/.{1,4}/g)?.join('-') || code;
@@ -133,8 +128,8 @@ app.get('/', (req, res) => {
         </head><body>
         <h1>👑 Panel de Conexión WhatsApp - Club Jaya</h1>
         <div class="box">
-            <h3>Estado: <span id="txt-estado" style="color:#d4af37">${connectionStatus}</span></h3>
-            <div id="contenedor-dinamico">${bloqueHtml}</div>
+            <h3>Estado: <span id="txt-estado" style="color:#d4af37">\${connectionStatus}</span></h3>
+            <div id="contenedor-dinamico">\${bloqueHtml}</div>
         </div>
         <script>
             function generarCodigoTxt(){
@@ -161,7 +156,7 @@ app.get('/', (req, res) => {
                                 '4. Introduce este código de 8 letras.' +
                             '</p>';
                         setInterval(chequearEstadoInvisble, 4000);
-                    } else { alert("Error al generar. Intente de nuevo."); btn.disabled = false; btn.innerText = "Generar Código"; }
+                    } else { alert("Error al generar."); btn.disabled = false; btn.innerText = "Generar Código"; }
                 }).catch(() => { btn.disabled = false; btn.innerText = "Generar Código"; });
             }
             function chequearEstadoInvisble(){
@@ -192,6 +187,6 @@ app.post('/enviar-mensaje', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`Servidor corriendo en puerto ${PORT}`);
+    console.log(`Servidor corriendo en puerto \${PORT}`);
     conectarWhatsApp();
 });

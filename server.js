@@ -12,7 +12,7 @@ let connectionStatus = "Iniciando servidor...";
 
 // REGLA DE ORO: Pon el número de teléfono del club aquí (con prefijo internacional, sin espacios ni el signo +)
 // Ejemplo para Argentina: "5493874123456"
-const NUMERO_TELEFONO_CLUB = "3885043963"; 
+const NUMERO_TELEFONO_CLUB = "5493885043963"; 
 
 async function conectarWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_jaya');

@@ -11,7 +11,7 @@ let codigoVinculacion = "";
 let connectionStatus = "Desconectado";
 
 async function conectarWhatsApp() {
-    // Koyeb guardará esta carpeta de forma persistente en su disco gratis
+    // Zeabur mantendrá esta carpeta persistente en su almacenamiento local gratuito
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_jaya');
     
     sock = makeWASocket({
@@ -32,7 +32,7 @@ async function conectarWhatsApp() {
         } else if (connection === 'open') {
             connectionStatus = "Conectado Exitosamente";
             codigoVinculacion = "";
-            console.log("¡WhatsApp conectado y guardado en el disco de Koyeb!");
+            console.log("¡WhatsApp conectado y guardado con éxito!");
         }
     });
 }

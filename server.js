@@ -1,4 +1,4 @@
-const { default: makeWASocket, delay, DisconnectReason } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, delay, DisconnectReason, initAuthCreds } = require('@whiskeysockets/baileys');
 const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -10,19 +10,9 @@ let sock;
 let codigoVinculacion = "";
 let connectionStatus = "Desconectado";
 
+// Almacenamiento seguro en memoria con credenciales nativas autogeneradas por Baileys
 let memoriaCreds = {
-    creds: {
-        registered: false,
-        noiseKey: { private: Buffer.alloc(32), public: Buffer.alloc(32) },
-        pairingEphemeralKeyPair: { private: Buffer.alloc(32), public: Buffer.alloc(32) },
-        signedIdentityKey: { private: Buffer.alloc(32), public: Buffer.alloc(32) },
-        signedPreKey: { keyPair: { private: Buffer.alloc(32), public: Buffer.alloc(32) }, signature: Buffer.alloc(64), keyId: 1 },
-        registrationId: Math.floor(Math.random() * 10000),
-        advSecretKey: "AAAA",
-        nextPreKeyId: 1,
-        firstUnuploadedPreKeyId: 1,
-        accountSettings: { unarchiveChats: false }
-    },
+    creds: initAuthCreds(),
     keys: {}
 };
 
@@ -73,7 +63,7 @@ async function conectarWhatsApp() {
         } else if (connection === 'open') {
             connectionStatus = "Conectado Exitosamente";
             codigoVinculacion = "";
-            console.log("¡WhatsApp conectado!");
+            console.log("¡WhatsApp conectado exitosamente!");
         }
     });
 }
@@ -84,7 +74,7 @@ app.post('/solicitar-codigo', async (req, res) => {
     if (!sock) return res.status(500).json({ error: "Servidor no inicializado" });
     try {
         if (sock.authState.creds.registered) {
-            memoriaCreds.creds.registered = false;
+            memoriaCreds.creds = initAuthCreds();
             await conectarWhatsApp();
             await delay(2000);
         }
@@ -122,7 +112,6 @@ app.get('/', (req, res) => {
                      '<button onclick="generarCodigoTxt()" id="btn-disparar" class="btn-num">Generar Código de 8 Dígitos</button>';
     }
 
-    // Aquí se eliminaron por completo las comillas invertidas del string HTML
     let htmlFinal = '<html lang="es"><head><meta charset="UTF-8"><title>Panel WhatsApp Club Jaya</title>' +
         '<style>body{font-family:sans-serif;background:#0b0b0b;color:#fff;text-align:center;padding:40px;} .box{background:#161616;padding:25px;border-radius:8px;display:inline-block;border:1px solid #d4af37;margin-top:20px;max-width:380px;box-sizing:border-box;} .input-num{width:100%;padding:10px;margin-top:10px;border-radius:4px;border:1px solid #333;background:#222;color:#fff;font-size:1rem;box-sizing:border-box;} .btn-num{width:100%;background:#d4af37;color:#000;border:none;padding:10px;border-radius:4px;font-weight:bold;margin-top:10px;cursor:pointer;}</style>' +
         '</head><body>' +

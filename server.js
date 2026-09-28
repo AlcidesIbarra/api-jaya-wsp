@@ -1,4 +1,4 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, delay, DisconnectReason } = require('@whiskeysockets/baileys');
 const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -10,16 +10,60 @@ let sock;
 let codigoVinculacion = "";
 let connectionStatus = "Desconectado";
 
+// Almacenamiento líquido en memoria RAM para hosting gratuito
+let memoriaCreds = {
+    creds: {
+        registered: false,
+        noiseKey: { private: Buffer.alloc(32), public: Buffer.alloc(32) },
+        pairingEphemeralKeyPair: { private: Buffer.alloc(32), public: Buffer.alloc(32) },
+        signedIdentityKey: { private: Buffer.alloc(32), public: Buffer.alloc(32) },
+        signedPreKey: { keyPair: { private: Buffer.alloc(32), public: Buffer.alloc(32) }, signature: Buffer.alloc(64), keyId: 1 },
+        registrationId: Math.floor(Math.random() * 10000),
+        advSecretKey: "AAAA",
+        nextPreKeyId: 1,
+        firstUn wickednessPreKeyId: 1,
+        accountSettings: { unarchiveChats: false }
+    },
+    keys: {}
+};
+
 async function conectarWhatsApp() {
-    const { state, saveCreds } = await useMultiFileAuthState('auth_info_jaya');
-    
+    // Inicializar estado limpio en memoria
+    const state = {
+        creds: memoriaCreds.creds,
+        keys: {
+            get: (type, ids) => {
+                const data = {};
+                for (const id of ids) {
+                    if (memoriaCreds.keys[`${type}-${id}`]) {
+                        data[id] = memoriaCreds.keys[`${type}-${id}`];
+                    }
+                }
+                return data;
+            },
+            set: (data) => {
+                for (const type in data) {
+                    for (const id in data[type]) {
+                        if (data[type][id]) {
+                            memoriaCreds.keys[`${type}-${id}`] = data[type][id];
+                        } else {
+                            delete memoriaCreds.keys[`${type}-${id}`];
+                        }
+                    }
+                }
+            }
+        }
+    };
+
     sock = makeWASocket({
         auth: state,
         printQRInTerminal: false,
         qrTimeout: 40000
     });
 
-    sock.ev.on('creds.update', saveCreds);
+    sock.ev.on('creds.update', (newCreds) => {
+        Object.assign(memoriaCreds.creds, newCreds);
+    });
 
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect } = update;
@@ -31,17 +75,24 @@ async function conectarWhatsApp() {
         } else if (connection === 'open') {
             connectionStatus = "Conectado Exitosamente";
             codigoVinculacion = "";
-            console.log("¡WhatsApp conectado correctamente!");
+            console.log("¡WhatsApp conectado de forma real!");
         }
     });
 }
 
 app.post('/solicitar-codigo', async (req, res) => {
     const { numero } = req.body;
-    if (!numero) return res.status(400).json({ error: "Falta el número de teléfono" });
+    if (!numero) return res.status(400).json({ error: "Falta el número" });
     if (!sock) return res.status(500).json({ error: "Servidor no inicializado" });
     
     try {
+        // Forzar un reinicio limpio del socket para el nuevo número
+        if (sock.authState.creds.registered) {
+            memoriaCreds.creds.registered = false;
+            await conectarWhatsApp();
+            await delay(2000);
+        }
+        
         connectionStatus = "Generando código de 8 dígitos...";
         let code = await sock.requestPairingCode(numero.trim());
         codigoVinculacion = code?.match(/.{1,4}/g)?.join('-') || code;
@@ -49,7 +100,7 @@ app.post('/solicitar-codigo', async (req, res) => {
         res.json({ status: "ok", codigo: codigoVinculacion });
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: "Error al solicitar código a WhatsApp" });
+        res.status(500).json({ error: "Error al solicitar código" });
     }
 });
 
